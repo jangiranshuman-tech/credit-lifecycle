@@ -1,0 +1,34 @@
+# data - never commit. Raw files are large and licence-restricted.
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ml
+mlruns/
+mlartifacts/
+*.pkl
+*.joblib
+
+# secrets - CRITICAL
+.env
+*.key
+kaggle.json
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+
+# outputs
+reports/figures/*.png
+!reports/figures/.gitkeep

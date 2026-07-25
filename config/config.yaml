@@ -1,0 +1,44 @@
+# Single source of truth. No magic numbers in notebooks.
+project:
+  name: credit-lifecycle
+  seed: 42
+
+paths:
+  raw: data/raw
+  interim: data/interim
+  processed: data/processed
+
+lendingclub:
+  accepted_file: data/raw/lendingclub/accepted_2007_to_2018Q4.csv
+  rejected_file: data/raw/lendingclub/rejected_2007_to_2018Q4.csv
+  # Risk_Score is FICO before this date and VantageScore after. Model the eras separately.
+  score_definition_break: "2013-11-05"
+  splits:
+    train_end: "2015-12-31"
+    valid_end: "2016-12-31"
+    # 2017-2018 is the out-of-time test set
+
+freddie:
+  raw_dir: data/raw/freddie
+  # Official sample dataset: 50k loans per vintage year, same fields as full data
+  vintages: [2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012]
+  train_vintages: [2005, 2006, 2007, 2008, 2009]
+  oot_vintages: [2010, 2011, 2012]
+  # Actual Loss is only populated for these zero balance codes
+  loss_zero_balance_codes: ["02", "03", "09", "15"]
+
+target:
+  # CRR Art. 178: 90+ days past due. Delinquency status "03" = 90-119 days.
+  default_dlq_threshold: 3
+  performance_window_months: 12
+
+ecl:
+  effective_interest_rate: 0.06
+  scenarios:
+    base:     {weight: 0.50}
+    upside:   {weight: 0.20}
+    downside: {weight: 0.30}
+  sicr:
+    relative_pd_multiple: 2.0
+    absolute_pd_threshold: 0.05
+    dpd_backstop: 30
