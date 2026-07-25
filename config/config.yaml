@@ -54,8 +54,14 @@ freddie:
   loss_zero_balance_codes: ["02", "03", "09", "15"]
 
 target:
-  # CRR Art. 178: 90+ days past due. Delinquency status "03" = 90-119 days.
-  default_dlq_threshold: 3
+  # CRR Art. 178: 90+ days past due.
+  # Freddie's current_loan_delinquency_status is UNPADDED alphanumeric — observed
+  # values in sample_svcg_2005.txt run "0" to "162" plus "RA" (REO acquisition).
+  # It counts 30-day periods under the MBA method, so "3" = 90-119 days.
+  # Note zero_balance_code IS zero-padded ("02", "09"); comparing delinquency
+  # status against "03" silently matches nothing.
+  default_dlq_threshold: "3"
+  reo_status_code: "RA"
   performance_window_months: 12
 
 ecl:
