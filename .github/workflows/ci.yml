@@ -7,18 +7,20 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install numpy pandas scipy pyarrow
+          pip install numpy pandas scipy pyarrow pyyaml python-dotenv
           pip install scikit-learn statsmodels duckdb
           pip install optbinning lightgbm
           pip install lifelines shap fairlearn pandera
           pip install pytest ruff
+          pip install -e .
       - name: Lint
         run: ruff check src tests
       - name: Test
