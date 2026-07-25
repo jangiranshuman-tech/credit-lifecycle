@@ -25,10 +25,19 @@ reconciled to each other — the framework transfers, the parameters do not.
 ## D2 · Freddie Mac 50k-per-vintage sample rather than the full dataset
 *2026-07-25*
 
-Using the published sample dataset for 2005–2012 vintages, around 400,000 loans and 30M
+Using the published sample dataset for 2005–2012 vintages, around 400,000 loans and 31M
 monthly rows. It is a documented simple random sample with fields identical to the full
-dataset. Measured footprint is 0.66 GB in memory with appropriate dtypes and 0.38 GB as
-Parquet, with roll-rate aggregation in about a second under DuckDB.
+dataset.
+
+Measured footprint, extrapolated from the 2005 vintage: **0.33 GB as Parquet on disk, but
+~7.0 GB if loaded into pandas** even with a full dtype map using pyarrow-backed strings
+(15.2 GB with no dtypes specified, and 18.9 GB with object-backed `string`, which is worse
+than doing nothing). An earlier version of this entry claimed 0.66 GB in memory; that was
+measured on a synthetic eight-column frame and was wrong by an order of magnitude for the
+real 32-column file.
+
+Consequence: the panel is queried from Parquet through DuckDB and only aggregated or
+filtered results enter pandas. That is a requirement of the data size, not a preference.
 
 Train on 2005–2009 vintages, out-of-time on 2010–2012 — training through the housing crash
 and testing on the recovery, which is a regime shift rather than a random holdout.
@@ -53,8 +62,9 @@ and understates the bad rate.
 until 2013-11-05, then VantageScore. Reject inference scores the rejected population using a
 model fitted on accepts, which requires the same features on the same scale on both sides.
 
-**Coverage.** 97.5% of FICO-era rejected applications carry a score, against roughly 21%
-from 2015 onward.
+**Coverage.** 91.3% of FICO-era rejected applications carry a usable score, against 24.8%
+from 2015 onward. The like-for-like measure treats the zero sentinel as missing per D5; the
+raw non-null rate of 97.5% counts 86,754 rows this project classifies as unscored.
 
 Options considered:
 
@@ -128,3 +138,98 @@ out-of-time property.
 
 Given up: an unbalanced split. The alternative, training on 2007–H1 2013, leaves a holdout of
 only a few months within a single regime.
+
+## D7 · Cut the accepted and rejected windows on different dates
+*2026-07-26*
+
+Accepted side ends 2013-12-31 on `issue_d`; rejected side ends 2013-11-05 on
+`Application Date`.
+
+An earlier version applied 2013-11-05 to both. That was wrong twice over. `issue_d` parses to
+the first of the month, so the accepted cut silently dropped all of December 2013 — 15,020
+loans, 11% of the out-of-time set, against a documented count of 134,814 that the code could
+not actually produce. More fundamentally the two dates measure different events: the
+FICO/VantageScore break is a property of the rejected file's application dates, while the
+accepted file carries FICO throughout and is constrained instead by censoring. Loans are also
+issued weeks after application, so no single date cuts both populations at the same point.
+
+Options considered: one date for both, separate dates, reconstruct an application date for
+the accepted file.
+
+Given up: the two populations are not aligned to the same calendar instant. Reconstructing an
+application date is the cleaner fix and remains open; the offset is on the order of weeks and
+does not affect the era assignment.
+
+## D8 · Define default on both CRR Art. 178 legs, not days past due alone
+*2026-07-26*
+
+Default requires 90+ DPD **or** evidence of unlikeliness to pay, the latter taken from
+terminal disposition codes 02, 03, 09 and 15.
+
+The days-past-due leg alone is insufficient and this is measurable: 16 loans in the 2005
+sample carry a realised published loss without ever reaching 90+ DPD, all under code 03
+(short sale or charge off). Defining default on DPD alone therefore puts part of the LGD
+population outside the PD default population, so the two models would be estimated on
+inconsistent samples.
+
+Options considered: DPD only, DPD plus unlikeliness-to-pay, DPD plus a modification flag.
+
+Given up: the default population is larger and no longer reconciles to a simple 90+ DPD
+count, so the two legs have to be reported separately in validation.
+
+## D9 · Restrict reject inference to the common support of DTI
+*2026-07-26*
+
+The instrument-comparability test that motivated D3 was initially applied only to the credit
+score. Applied to DTI it produces a harder constraint.
+
+Accepted `dti` is capped at 34.99 — that was Lending Club credit policy, and no accepted loan
+exceeds 35. 20.6% of FICO-era rejected applications sit above that cap, where the accepted
+sample provides no observations at all. A model fitted on accepts is unidentified there, so
+inferring performance for those applicants is extrapolation beyond support rather than
+inference. The rejected column additionally carries a −1 sentinel on 28,258 rows and is
+uncapped to 50,000,031, and it is a different construction from the accepted figure —
+self-reported at application versus computed at underwriting.
+
+Options considered: ignore and fit anyway; restrict to common support; extrapolate with a
+parametric assumption.
+
+Given up: roughly a fifth of the rejected population cannot be assigned an inferred
+performance with any credibility. Methods are restricted to parcelling and reweighting inside
+the support; the excluded region is reported rather than silently modelled.
+
+## D10 · Lending Club target is terminal outcome, not a fixed performance window
+*2026-07-26*
+
+The accepted file is a snapshot, so a fixed months-on-book performance window cannot be
+constructed from it. An earlier config carried `performance_window_months: 12`, which the data
+does not support. The target is terminal outcome as at the 2018Q4 extract: bad is Charged Off
+or Default, good is Fully Paid, and Current, Late and In Grace Period are indeterminate and
+excluded. Within the accepted window this is nearly exhaustive — 228,706 of 230,716 loans are
+terminal and only 10 remain open.
+
+Options considered: approximate a fixed window from `last_pymnt_d`; use terminal outcome with
+vintage adjustment; abandon the LC scorecard.
+
+The first was rejected because `last_pymnt_d` dates the last payment, not the charge-off, so
+a reconstructed months-to-default is biased by an unknown lag.
+
+Given up: outcome horizon varies by vintage (about 11.5 years for 2007 against 5 for 2013) and
+by 36 versus 60 month term, so bad rates are not directly comparable across vintages. Handled
+by vintage-level analysis and reported, not assumed away.
+
+## D11 · Policy-code loans flagged and excluded
+*2026-07-26*
+
+2,749 loans carry a `Does not meet the credit policy. Status:X` variant — 1,988 Fully Paid and
+761 Charged Off — concentrated entirely in 2007–2010 and absent from 2011 onward. In 2007 they
+are 58% of the vintage.
+
+Two reasons to handle them explicitly. A naive equality test against `"Charged Off"` labels
+all 761 defaults as good. And they were originated under different policy, so they are a
+structurally different population whose inclusion would contaminate the early vintages.
+
+`add_target()` recovers the base status, sets `off_policy`, and the default treatment excludes
+them. Retaining them as a flagged segment remains available.
+
+Given up: 2,749 observations, disproportionately from the thinnest vintages.

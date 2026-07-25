@@ -26,6 +26,7 @@ kaggle.json
 
 # private prep material - NEVER push
 interview-prep/
+_planning/
 
 # os / editor
 .DS_Store

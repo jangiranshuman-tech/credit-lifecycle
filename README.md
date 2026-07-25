@@ -16,22 +16,27 @@ SR 11-7 / EBA standard.
 | Freddie Mac SFLLD (2005-2012 sample) | Lifetime: roll rates, hazard PD, LGD from actual loss, EAD, ECL |
 | FRED | Macro conditioning and scenarios |
 
-### Lending Club modelling window: 2007 – Nov 2013
+### Lending Club modelling window
 
-Three independent reasons, measured on the raw files:
+Two windows, cut on different date fields because they are constrained by different things.
 
-1. **Censoring.** The extract is 2018Q4. A 60-month loan issued in late 2013 has matured,
-   so outcomes across this window are fully observed. Loans issued from 2015 are still
-   `Current`, so a model trained on them fits censored labels.
-2. **Score comparability.** The accepted file carries FICO; the rejected file carries FICO
-   only until 2013-11-05, then VantageScore. Reject inference requires both sides on the
-   same instrument.
-3. **Coverage.** 97.5% of FICO-era rejected applications carry a score, against roughly
-   21% from 2015 onward.
+**Accepted loans: 2007 to 2013-12-31, cut on `issue_d`.** The binding constraint is
+censoring. The extract is 2018Q4, so a 60-month loan issued in late 2013 has matured — of
+230,716 loans in this window, 228,706 are terminal and only 10 remain open. Loans issued from
+2015 are still `Current`, so a model trained on them fits censored labels.
 
-Splits: train 2007–2012 (95,902 loans), out-of-time 2013 (134,814 loans). The 2,029,952
-loans from 2014–2018 cannot support reject inference or outcome modelling, so they serve as
-the drift-monitoring population for PSI/CSI.
+**Rejected applications: 2007 to 2013-11-05, cut on `Application Date`.** The binding
+constraint is score comparability. The accepted file carries FICO throughout; the rejected
+file carries FICO only until this date, then VantageScore. Coverage supports the same cut —
+91.3% of FICO-era rejects carry a usable score against 24.8% from 2015.
+
+Splits: train 2007–2012 (95,902 loans), out-of-time 2013 (134,814 loans). The 2,029,952 loans
+from 2014–2018 cannot support reject inference or outcome modelling, so they serve as the
+drift-monitoring population for PSI/CSI.
+
+A separate constraint governs which reject-inference methods are admissible: accepted `dti` is
+capped at 34.99 by credit policy while 20.6% of rejects sit above it, so the accepted sample
+provides no support there. Methods stay inside the common support.
 
 Reasoning and rejected alternatives in [`docs/decision_log.md`](docs/decision_log.md);
 data and modelling constraints in [`docs/limitations.md`](docs/limitations.md).

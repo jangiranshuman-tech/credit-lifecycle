@@ -3,6 +3,27 @@ name = "credit-lifecycle"
 version = "0.1.0"
 description = "End-to-end credit decisioning and expected credit loss platform (IFRS 9 / CECL)"
 requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scipy>=1.13",
+    "pyarrow>=16",
+    "pyyaml>=6",
+    "python-dotenv>=1",
+    "duckdb>=1.1",
+    "pandera>=0.20",
+    "scikit-learn>=1.5",
+    "statsmodels>=0.14",
+    "optbinning>=0.19",
+    "lightgbm>=4.3",
+    "lifelines>=0.29",
+    "shap>=0.45",
+    "fairlearn>=0.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "jupyter", "matplotlib", "seaborn"]
+serve = ["fastapi", "uvicorn", "mlflow", "evidently"]
 
 [build-system]
 requires = ["setuptools>=68"]

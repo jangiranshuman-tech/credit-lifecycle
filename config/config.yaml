@@ -18,23 +18,45 @@ lendingclub:
   # the FICO era has a comparable score on both sides of the accept/reject boundary.
   score_definition_break: "2013-11-05"
 
-  # 86,754 FICO-era rows (6.35%) hold Risk_Score exactly 0. Max is 850 and there are
-  # no other sub-300 values, so 0 is a missing-value sentinel.
+  # 86,754 FICO-era rows hold Risk_Score exactly 0 — 6.19% of FICO-era rows, or
+  # 6.35% of those with a non-null score. Max is 850 and the lowest positive value
+  # is 363, so 0 is a missing-value sentinel.
+  # Note the missingness MECHANISM changes: zeros are the dominant form before
+  # 2015 and there are none at all from 2015 onward, where true nulls take over.
   risk_score_missing_sentinel: 0
 
-  # Modelling window. Reasons, in order of strength (decision log D3):
-  #   1. Censoring - a 60-month loan issued late 2013 matures at the 2018Q4 extract,
-  #      so outcomes here are fully observed. Loans from 2015 are still Current.
-  #   2. Score comparability - FICO on both accepted and rejected sides.
-  #   3. Coverage - 97.5% of FICO-era rejects carry a score, against ~21% from 2015.
-  # The window also contains the 2008-09 downturn, which supports the macro work.
-  modelling_window:
+  # The rejected DTI column carries its own sentinel and is uncapped. Measured over
+  # the FICO era: 28,258 rows at exactly -1, p99 = 384.63, max = 50,000,031.
+  dti_missing_sentinel: -1
+  # Accepted dti is hard-capped at 34.99 by Lending Club credit policy — zero
+  # accepted loans above 35. 20.6% of FICO-era rejects sit above that cap, so the
+  # accepted sample provides NO support there. Reject inference must stay inside
+  # the common support; extrapolation above this is unidentified. See D9.
+  dti_common_support_max: 34.99
+
+  # TWO windows, cut on different date fields for different reasons. Applying one
+  # date to both files was an error: the FICO/Vantage break is a property of the
+  # REJECTED file's application dates, while the accepted file carries FICO
+  # throughout and is constrained instead by censoring. Loans are also issued
+  # weeks after application, so the two populations do not align on one date.
+  #
+  # Accepted side, cut on issue_d. Binding constraint is censoring: measured on
+  # the raw file, only 10 of 230,716 loans issued through 2013-12-31 are still
+  # non-terminal at the 2018Q4 extract (6 Current, 3 Late, 1 In Grace).
+  accepted_window:
+    start: "2007-01-01"
+    end:   "2013-12-31"
+
+  # Rejected side, cut on Application Date. Binding constraint is score
+  # comparability: FICO before the break, VantageScore after, while the accepted
+  # file is FICO throughout.
+  rejected_window:
     start: "2007-01-01"
     end:   "2013-11-05"
 
   splits:
     train_end: "2012-12-31"   # 95,902 accepted loans
-    oot_start: "2013-01-01"   # 134,814 accepted loans, outcomes fully observed
+    oot_start: "2013-01-01"   # 134,814 accepted loans, outcomes effectively complete
 
   # 2014-2018 holds 2,029,952 accepted loans but cannot support reject inference or
   # outcome modelling: rejected-side scores are 79-93% null from 2015 and the loans
@@ -50,19 +72,41 @@ freddie:
   vintages: [2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012]
   train_vintages: [2005, 2006, 2007, 2008, 2009]
   oot_vintages: [2010, 2011, 2012]
-  # Actual Loss is only populated for these zero balance codes
-  loss_zero_balance_codes: ["02", "03", "09", "15"]
+  # Zero balance codes carrying Actual Loss are defined once, in
+  # freddie_layout.LOSS_ZERO_BALANCE_CODES, and asserted equal to
+  # target_freddie.utp_zero_balance_codes by tests/test_config_consistency.py.
 
-target:
-  # CRR Art. 178: 90+ days past due.
-  # Freddie's current_loan_delinquency_status is UNPADDED alphanumeric — observed
-  # values in sample_svcg_2005.txt run "0" to "162" plus "RA" (REO acquisition).
-  # It counts 30-day periods under the MBA method, so "3" = 90-119 days.
-  # Note zero_balance_code IS zero-padded ("02", "09"); comparing delinquency
-  # status against "03" silently matches nothing.
-  default_dlq_threshold: "3"
-  reo_status_code: "RA"
-  performance_window_months: 12
+target_freddie:
+  # CRR Art. 178 has two legs and both are required.
+  # (a) Days past due: 90+. Freddie's current_loan_delinquency_status counts
+  #     30-day periods under the MBA method, so bucket 3 = 90-119 days. The field
+  #     is UNPADDED alphanumeric ("0".."162", plus "RA"/"XX") — parse it to an
+  #     integer via freddie_layout.parse_dlq before comparing. A string comparison
+  #     is lexicographic and would classify "12" as below "3".
+  default_dlq_threshold: 3
+  # (b) Unlikeliness to pay: evidenced by terminal disposition. Measured on the
+  #     2005 sample, 16 loans carry a realised published loss without ever reaching
+  #     90+ DPD, so the DPD leg alone leaves the LGD population outside the PD
+  #     default population. See D8.
+  utp_zero_balance_codes: ["02", "03", "09", "15"]
+
+target_lendingclub:
+  # The accepted file is a snapshot, so a fixed months-on-book performance window
+  # CANNOT be constructed from it. The target is necessarily terminal outcome as at
+  # the 2018Q4 extract. Within the accepted window this is near-complete: 228,706
+  # of 230,716 loans are terminal (Fully Paid or Charged Off) and only 10 are still
+  # open. Outcome HORIZON still varies by vintage and by 36 vs 60 month term, which
+  # is handled by vintage-level analysis rather than pretended away. See D10.
+  bad_statuses:  ["Charged Off", "Default"]
+  good_statuses: ["Fully Paid"]
+  # Excluded as indeterminate: Current, Late (31-120 days), In Grace Period.
+  indeterminate_statuses: ["Current", "Late (31-120 days)", "In Grace Period"]
+  # 2,749 loans carry a "Does not meet the credit policy. Status:X" variant, all
+  # issued 2007-2010 (352/831/565/1001) and none after. 761 of them are Charged
+  # Off; a naive equality test on loan_status labels every one of those as good.
+  # They are a structurally different population originated under different policy.
+  policy_code_prefix: "Does not meet the credit policy"
+  policy_code_treatment: "flag_and_exclude"
 
 ecl:
   effective_interest_rate: 0.06

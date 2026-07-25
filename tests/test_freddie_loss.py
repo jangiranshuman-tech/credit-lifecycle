@@ -21,15 +21,15 @@ def test_user_guide_example_8():
     assert abs(float(got) - 78_941.24) < 0.01
 
 
-def test_user_guide_example_9_known_discrepancy():
-    """Does not reconcile: computes 59,277.56 against 59,277.74 published.
+def test_user_guide_example_9():
+    """Foreclosure alternative, zero balance code 03. Reconciles exactly.
 
-    Difference is 0.18. Example 8 reconciles exactly under the same formula, and
-    the formula reconciles against real data at 100% (see below), so the guide's
-    Example 9 appears to contain an error. Recorded in docs/limitations.md.
+    Zero Balance Removal UPB is 125,811.69, taken from the data table for loan
+    F03Q10040164. The prose formula line printed beneath that table transcribes it
+    as 125,811.51, which does not reconcile; the table value does.
     """
-    got = float(actual_loss(125_811.51, 13_021.51, 99_575.03, 0.0, 1_733.83, -21_753.40))
-    assert abs(got - 59_277.56) < 0.01, f"got {got}"
+    got = float(actual_loss(125_811.69, 13_021.51, 99_575.03, 0.0, 1_733.83, -21_753.40))
+    assert abs(got - 59_277.74) < 0.01, f"got {got}"
 
 
 def test_real_loan_reconciles_to_negated_published_field():
