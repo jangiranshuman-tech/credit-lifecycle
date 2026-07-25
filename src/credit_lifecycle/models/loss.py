@@ -6,13 +6,13 @@ Official formula (User Guide, "Actual Loss" section):
     Actual Loss = (Zero Balance Removal UPB + Delinquent Accrued Interest)
                   - Net Sale Proceeds - MI Recoveries - Non-MI Recoveries - Expenses
 
-GOTCHAS, both verified:
-  1. Expenses are stored as a NEGATIVE number, so subtracting them ADDS to the loss.
-  2. Modification Costs are NOT included in Freddie's own loss field.
+Four properties of the source data affect this calculation:
+  1. Expenses are stored as a negative number, so subtracting them adds to the loss.
+     An incorrect sign here produces LGD estimates that are wrong but still plausible,
+     which is why test_freddie_loss.py pins the formula against a published example.
+  2. Modification costs are excluded from Freddie's own loss field.
   3. Loss is null for loans disposed within three months of the zero balance date.
   4. Loss is populated only for zero balance codes 02, 03, 09, 15.
-
-Get (1) wrong and your LGD is wrong in a way that still looks plausible.
 """
 import numpy as np
 

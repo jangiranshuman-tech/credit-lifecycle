@@ -1,20 +1,18 @@
 """
 Freddie Mac SFLLD file layout.
 
-CRITICAL: the files are pipe-delimited .txt with the HEADER ROW REMOVED.
-Columns are identified by POSITION ONLY. Read with:
+The files are pipe-delimited .txt with the header row removed, so columns are
+identified by position only:
 
     pd.read_csv(path, sep="|", header=None, names=ORIGINATION_COLS, low_memory=False)
 
-The field names below were verified against the official User Guide
-(https://www.freddiemac.com/fmac-resources/research/pdf/user_guide.pdf).
+Field names below are taken from the official User Guide:
+https://www.freddiemac.com/fmac-resources/research/pdf/user_guide.pdf
 
->>> ACTION REQUIRED (Week 1, ~20 min) <<<
-Positions marked TODO_* were not captured in my extraction. Open the User Guide,
-go to the "File Layout & Data Dictionary" section, and fill them in IN ORDER.
-Do NOT guess - a wrong position silently corrupts every downstream model.
-Freddie also publishes a SAS parsing script on the dataset page; use it as the
-authoritative field order and cross-check against what you transcribe.
+Positions still marked TODO_* are outstanding. They need to be filled from the
+"File Layout & Data Dictionary" section of the User Guide, cross-checked against
+the SAS parsing script Freddie publishes on the dataset page. A wrong position
+corrupts downstream models without raising an error, so these are not guessed.
 """
 
 # --- Origination file: 32 fields (historical_data_YYYYQn.txt / sample_orig_YYYY.txt)
@@ -90,5 +88,6 @@ PERFORMANCE_DTYPES = {
     "current_interest_rate": "float32",
 }
 
-# Actual Loss is ONLY populated for these zero balance codes. Filter or your LGD is biased.
+# Actual Loss is populated only for these zero balance codes; the LGD sample must be
+# filtered on them to avoid bias.
 LOSS_ZERO_BALANCE_CODES = {"02", "03", "09", "15"}

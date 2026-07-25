@@ -11,12 +11,38 @@ paths:
 lendingclub:
   accepted_file: data/raw/lendingclub/accepted_2007_to_2018Q4.csv
   rejected_file: data/raw/lendingclub/rejected_2007_to_2018Q4.csv
-  # Risk_Score is FICO before this date and VantageScore after. Model the eras separately.
+
+  # Measured on the raw files 2026-07-25. See docs/limitations.md.
+  # Rejected file is 27,648,741 rows x 9 cols. Risk_Score is FICO before the break
+  # date and VantageScore after; the accepted file carries FICO throughout, so only
+  # the FICO era has a comparable score on both sides of the accept/reject boundary.
   score_definition_break: "2013-11-05"
+
+  # 86,754 FICO-era rows (6.35%) hold Risk_Score exactly 0. Max is 850 and there are
+  # no other sub-300 values, so 0 is a missing-value sentinel.
+  risk_score_missing_sentinel: 0
+
+  # Modelling window. Reasons, in order of strength (decision log D3):
+  #   1. Censoring - a 60-month loan issued late 2013 matures at the 2018Q4 extract,
+  #      so outcomes here are fully observed. Loans from 2015 are still Current.
+  #   2. Score comparability - FICO on both accepted and rejected sides.
+  #   3. Coverage - 97.5% of FICO-era rejects carry a score, against ~21% from 2015.
+  # The window also contains the 2008-09 downturn, which supports the macro work.
+  modelling_window:
+    start: "2007-01-01"
+    end:   "2013-11-05"
+
   splits:
-    train_end: "2015-12-31"
-    valid_end: "2016-12-31"
-    # 2017-2018 is the out-of-time test set
+    train_end: "2012-12-31"   # 95,902 accepted loans
+    oot_start: "2013-01-01"   # 134,814 accepted loans, outcomes fully observed
+
+  # 2014-2018 holds 2,029,952 accepted loans but cannot support reject inference or
+  # outcome modelling: rejected-side scores are 79-93% null from 2015 and the loans
+  # are censored. Used for PSI/CSI of the through-the-door distribution against the
+  # 2013 development window.
+  monitoring_window:
+    start: "2014-01-01"
+    end:   "2018-12-31"
 
 freddie:
   raw_dir: data/raw/freddie

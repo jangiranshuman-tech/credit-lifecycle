@@ -1,4 +1,7 @@
-"""ECL engine must match a hand calculation before you trust it on a portfolio."""
+"""Checks the vectorised ECL summation against a closed-form calculation on a
+single loan, so the discounting convention is fixed before the engine is applied
+at portfolio level.
+"""
 import numpy as np
 
 
